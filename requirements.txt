@@ -1,0 +1,44 @@
+# --- core scientific stack ---
+numpy>=1.24,<2.0
+pandas>=2.0
+scipy>=1.10
+scikit-learn>=1.3
+joblib>=1.3
+
+# --- bioinformatics ---
+biopython>=1.81
+
+# --- backend API ---
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.5
+python-multipart>=0.0.9
+
+# --- visualization (used in notebooks / explanations) ---
+matplotlib>=3.7
+seaborn>=0.13
+
+# --- frontend (kept for legacy streamlit + later use) ---
+streamlit>=1.30
+
+# --- utilities ---
+tqdm>=4.66
+requests>=2.31
+python-dotenv>=1.0
+reportlab>=4.0
+
+# --- transformer integration (DNABERT-2) ---
+# Install torch separately with the right CUDA wheel:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu124
+torch>=2.2
+transformers>=4.40
+tokenizers>=0.15
+einops>=0.7
+accelerate>=0.29
+safetensors>=0.4
+huggingface_hub>=0.20
+
+# --- RAG / Copilot (free) ---
+sentence-transformers>=2.7,<3.0
+faiss-cpu>=1.7
+google-genai>=0.3

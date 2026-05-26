@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GenomeIQ — DNA Disease Classifier</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ctext y='20' font-size='20'%3E%F0%9F%A7%AC%3C/text%3E%3C/svg%3E" />
+  <script>
+    (function () {
+      try {
+        const saved = localStorage.getItem('genomeiq.theme');
+        const prefers = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (saved === 'dark' || (!saved && prefers)) document.documentElement.classList.add('dark');
+      } catch (_) {}
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            brand: { 50:'#eef7ff',100:'#d9edff',200:'#b9dcff',300:'#8cc4ff',400:'#5ba1fb',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a' },
+            ink:   { 50:'#f8fafc',100:'#f1f5f9',200:'#e2e8f0',300:'#cbd5e1',400:'#94a3b8',500:'#64748b',600:'#475569',700:'#334155',800:'#1e293b',900:'#0f172a',950:'#020617' },
+          },
+          boxShadow: { 'soft':'0 1px 2px rgba(15,23,42,.04), 0 8px 24px -8px rgba(15,23,42,.08)' },
+        },
+      },
+    };
+  </script>
+</head>
+<body class="bg-ink-50 dark:bg-ink-950 text-ink-800 dark:text-ink-100 font-sans antialiased min-h-screen transition-colors">
+<div x-data="genomeApp()" x-init="init()" class="min-h-screen flex">
+
+  <!-- Sidebar -->
+  <aside class="w-64 shrink-0 bg-white dark:bg-ink-900 border-r border-ink-200 dark:border-ink-800 flex flex-col">
+    <div class="px-5 py-5 border-b border-ink-200 dark:border-ink-800 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 grid place-items-center text-white text-xl shadow-soft">🧬</div>
+      <div>
+        <div class="font-extrabold tracking-tight text-ink-900 dark:text-white leading-tight">GenomeIQ</div>
+        <div class="text-[11px] text-ink-500 dark:text-ink-400 font-medium">Disease Classifier</div>
+      </div>
+    </div>
+    <nav class="p-3 space-y-1 flex-1">
+      <template x-for="item in nav" :key="item.id">
+        <button @click="page = item.id"
+                :class="page === item.id ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300 ring-1 ring-brand-100 dark:ring-brand-500/30' : 'text-ink-600 dark:text-ink-300 hover:bg-ink-100 dark:hover:bg-ink-800'"
+                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition">
+          <span x-text="item.icon" class="text-lg"></span>
+          <span x-text="item.label"></span>
+        </button>
+      </template>
+    </nav>
+    <div class="p-3 border-t border-ink-200 dark:border-ink-800">
+      <div class="rounded-lg bg-ink-50 dark:bg-ink-800 px-3 py-2.5 flex items-center gap-2 text-xs">
+        <span class="w-2 h-2 rounded-full" :class="health.ok ? 'bg-emerald-500' : 'bg-rose-500'"></span>
+        <span class="font-medium text-ink-700 dark:text-ink-200" x-text="health.ok ? 'API online' : 'API offline'"></span>
+        <span class="ml-auto font-mono text-ink-400 dark:text-ink-500" x-text="health.version || ''"></span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 flex flex-col min-w-0">
+    <header class="h-16 bg-white dark:bg-ink-900 border-b border-ink-200 dark:border-ink-800 px-8 flex items-center justify-between sticky top-0 z-20">
+      <div>
+        <h1 class="text-lg font-bold text-ink-900 dark:text-white" x-text="currentNav().label"></h1>
+        <p class="text-xs text-ink-500 dark:text-ink-400" x-text="currentNav().subtitle"></p>
+      </div>
+      <div class="flex items-center gap-2 text-sm">
+        <span class="hidden md:inline text-ink-400 dark:text-ink-500 mr-2">Research preview · not for clinical use</span>
+        <button x-show="page === 'analyze' && analyze.result" @click="downloadPdf()"
+                title="Download PDF report"
+                class="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium text-xs flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          PDF
+        </button>
+        <button @click="toggleTheme()" :title="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+                class="w-9 h-9 grid place-items-center rounded-lg bg-ink-100 dark:bg-ink-800 hover:bg-ink-200 dark:hover:bg-ink-700 text-ink-700 dark:text-ink-200 transition">
+          <span x-show="theme !== 'dark'">☀️</span>
+          <span x-show="theme === 'dark'">🌙</span>
+        </button>
+        <a href="/docs" target="_blank" class="px-3 py-1.5 rounded-lg bg-ink-100 dark:bg-ink-800 hover:bg-ink-200 dark:hover:bg-ink-700 text-ink-700 dark:text-ink-200 font-medium text-xs">API Docs ↗</a>
+      </div>
+    </header>
+
+    <div class="p-8 flex-1 overflow-y-auto">
+
+      <!-- ANALYZE PAGE -->
+      <section x-show="page === 'analyze'" x-cloak>
+        <div class="grid grid-cols-12 gap-6">
+          <!-- Input panel -->
+          <div class="col-span-12 lg:col-span-5 space-y-4">
+            <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+              <div class="flex items-center justify-between mb-3">
+                <h2 class="font-semibold text-ink-900 dark:text-white">DNA Sequence</h2>
+                <div class="text-xs text-ink-500 dark:text-ink-400" x-text="`${analyze.sequence.length.toLocaleString()} chars`"></div>
+              </div>
+              <textarea x-model="analyze.sequence" @input="onSequenceInput()" spellcheck="false"
+                        placeholder="Paste a DNA sequence (A / T / G / C / N) or FASTA..."
+                        class="w-full h-44 px-3 py-2 text-sm font-mono rounded-lg border border-ink-200 dark:border-ink-700 dark:bg-ink-950/40 dark:text-ink-100 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-500/20 outline-none resize-y bg-ink-50/50"></textarea>
+
+              <div class="grid grid-cols-3 gap-2 mt-3 text-xs">
+                <div class="rounded-lg bg-ink-50 dark:bg-ink-800 px-3 py-2">
+                  <div class="text-ink-500 dark:text-ink-400">Length</div>
+                  <div class="font-semibold text-ink-900 dark:text-white" x-text="liveStats.length"></div>
+                </div>
+                <div class="rounded-lg bg-ink-50 dark:bg-ink-800 px-3 py-2">
+                  <div class="text-ink-500 dark:text-ink-400">GC%</div>
+                  <div class="font-semibold text-ink-900 dark:text-white" x-text="liveStats.gc"></div>
+                </div>
+                <div class="rounded-lg bg-ink-50 dark:bg-ink-800 px-3 py-2">
+                  <div class="text-ink-500 dark:text-ink-400">Valid</div>
+                  <div class="font-semibold" :class="liveStats.valid ? 'text-emerald-500' : 'text-rose-500'" x-text="liveStats.valid ? 'Yes' : 'No'"></div>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap gap-2 mt-4">
+                <button @click="analyze.sequence = ''; computeLiveStats()"
+                        class="px-3 py-1.5 text-xs rounded-lg bg-ink-100 dark:bg-ink-800 hover:bg-ink-200 dark:hover:bg-ink-700 text-ink-700 dark:text-ink-200 font-medium">Clear</button>
+                <button @click="loadSample('cancer')" class="px-3 py-1.5 text-xs rounded-lg bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 font-medium">BRCA1 (Cancer)</button>
+                <button @click="loadSample('diabetes')" class="px-3 py-1.5 text-xs rounded-lg bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-medium">INS (Diabetes)</button>
+                <button @click="loadSample('alzheimers')" class="px-3 py-1.5 text-xs rounded-lg bg-purple-50 dark:bg-purple-500/10 hover:bg-purple-100 dark:hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-medium">APP (Alzheimer's)</button>
+                <button @click="loadSample('normal')" class="px-3 py-1.5 text-xs rounded-lg bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-medium">ACTB (Normal)</button>
+              </div>
+
+              <button @click="runAnalyze()" :disabled="analyze.loading"
+                      class="mt-4 w-full py-3 rounded-lg bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 text-white font-semibold text-sm shadow-soft disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                <svg x-show="analyze.loading" class="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity=".3" stroke-width="3"/><path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+                <span x-text="analyze.loading ? 'Analyzing...' : 'Analyze Sequence'"></span>
+              </button>
+              <p x-show="analyze.error" x-text="analyze.error" class="mt-3 text-xs text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded-lg"></p>
+            </div>
+
+            <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+              <h3 class="text-sm font-semibold text-ink-900 dark:text-white mb-3">Analysis Options</h3>
+              <div class="mb-3">
+                <div class="text-[11px] uppercase font-semibold text-ink-500 dark:text-ink-400 mb-1.5">Model backbone</div>
+                <div class="grid grid-cols-3 gap-1 p-1 rounded-lg bg-ink-100 dark:bg-ink-800">
+                  <template x-for="opt in modelOptions" :key="opt.id">
+                    <button @click="analyze.options.model = opt.id"
+                            :disabled="!opt.available"
+                            :title="opt.available ? opt.description : 'Not available — train DNABERT-2 head first'"
+                            :class="analyze.options.model === opt.id ? 'bg-white dark:bg-ink-700 shadow text-brand-700 dark:text-brand-300' : 'text-ink-600 dark:text-ink-300 hover:text-ink-900 dark:hover:text-white'"
+                            class="px-2 py-1.5 rounded-md text-xs font-medium transition disabled:opacity-40 disabled:cursor-not-allowed">
+                      <span x-text="opt.label"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+              <label class="flex items-center justify-between py-1.5 text-sm cursor-pointer">
+                <span class="text-ink-700 dark:text-ink-200">Saliency explanation</span>
+                <input type="checkbox" x-model="analyze.options.explain" class="rounded text-brand-600">
+              </label>
+              <label class="flex items-center justify-between py-1.5 text-sm cursor-pointer">
+                <span class="text-ink-700 dark:text-ink-200">Out-of-distribution check</span>
+                <input type="checkbox" x-model="analyze.options.ood" class="rounded text-brand-600">
+              </label>
+              <label class="flex items-center justify-between py-1.5 text-sm cursor-pointer">
+                <span class="text-ink-700 dark:text-ink-200">Similar sequence search</span>
+                <input type="checkbox" x-model="analyze.options.similar" class="rounded text-brand-600">
+              </label>
+            </div>
+          </div>
+
+          <!-- Result panel -->
+          <div class="col-span-12 lg:col-span-7 space-y-4">
+
+            <div x-show="!analyze.result && !analyze.loading"
+                 class="bg-white dark:bg-ink-900 rounded-2xl border border-dashed border-ink-300 dark:border-ink-700 p-12 text-center">
+              <div class="text-5xl mb-3">🧬</div>
+              <div class="font-semibold text-ink-800 dark:text-white">No analysis yet</div>
+              <p class="text-sm text-ink-500 dark:text-ink-400 mt-1">Paste a DNA sequence or pick a sample to begin.</p>
+            </div>
+
+            <div x-show="analyze.loading" class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 p-12 text-center">
+              <div class="inline-block w-10 h-10 rounded-full border-4 border-brand-200 dark:border-brand-500/30 border-t-brand-600 animate-spin"></div>
+              <div class="mt-3 text-sm text-ink-600 dark:text-ink-300">Running classifier, OOD check & similarity search…</div>
+            </div>
+
+            <template x-if="analyze.result">
+              <div class="space-y-4">
+                <!-- Verdict + confidence gauge -->
+                <div class="rounded-2xl border shadow-soft p-5 bg-white dark:bg-ink-900 border-ink-200 dark:border-ink-800"
+                     :style="`background: linear-gradient(135deg, ${verdictColor()}10, transparent); border-color: ${verdictColor()}40;`">
+                  <div class="flex items-center justify-between gap-4 flex-wrap">
+                    <div class="flex items-center gap-4">
+                      <div class="w-14 h-14 rounded-xl grid place-items-center text-3xl"
+                           :style="`background:${verdictColor()}20`"
+                           x-text="verdictIcon()"></div>
+                      <div>
+                        <div class="text-xs uppercase font-semibold tracking-wider flex items-center gap-2" :style="`color:${verdictColor()}`">
+                          <span x-text="'Predicted class'"></span>
+                          <span x-show="analyze.result.prediction.model" class="px-1.5 py-0.5 rounded text-[10px] bg-ink-100 dark:bg-ink-800 text-ink-600 dark:text-ink-300" x-text="(analyze.result.prediction.model || '').toUpperCase()"></span>
+                        </div>
+                        <div class="text-2xl font-extrabold text-ink-900 dark:text-white" x-text="analyze.result.prediction.predicted_class"></div>
+                        <div class="text-sm text-ink-600 dark:text-ink-300 mt-1" x-text="verdictDescription()"></div>
+                      </div>
+                    </div>
+                    <!-- Radial confidence gauge -->
+                    <div class="relative w-24 h-24">
+                      <svg viewBox="0 0 36 36" class="w-24 h-24 -rotate-90">
+                        <circle cx="18" cy="18" r="15.915" stroke="currentColor" class="text-ink-200 dark:text-ink-800" stroke-width="3" fill="none"></circle>
+                        <circle cx="18" cy="18" r="15.915" :stroke="verdictColor()" stroke-width="3" fill="none" stroke-linecap="round"
+                                :stroke-dasharray="`${analyze.result.prediction.confidence * 100}, 100`"></circle>
+                      </svg>
+                      <div class="absolute inset-0 grid place-items-center">
+                        <div class="text-center">
+                          <div class="text-xl font-extrabold" :style="`color:${verdictColor()}`" x-text="(analyze.result.prediction.confidence * 100).toFixed(0) + '%'"></div>
+                          <div class="text-[10px] text-ink-500 dark:text-ink-400 -mt-0.5">confidence</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <template x-if="analyze.result.ood && !analyze.result.ood.error">
+                    <div class="mt-4 flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
+                         :class="oodClass()">
+                      <span x-text="oodIcon()"></span>
+                      <span x-text="analyze.result.ood.message"></span>
+                      <span class="ml-auto opacity-70 font-mono">novelty <span x-text="(analyze.result.ood.novelty_score*100).toFixed(0)+'%'"></span></span>
+                    </div>
+                  </template>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+                    <h3 class="font-semibold text-ink-900 dark:text-white mb-3 text-sm">Class Probabilities</h3>
+                    <div class="space-y-2">
+                      <template x-for="[cls, p] in sortedProbs()" :key="cls">
+                        <div>
+                          <div class="flex justify-between text-xs mb-0.5">
+                            <span class="font-medium text-ink-700 dark:text-ink-200" x-text="diseaseLabel(cls)"></span>
+                            <span class="font-mono text-ink-600 dark:text-ink-300" x-text="(p*100).toFixed(1)+'%'"></span>
+                          </div>
+                          <div class="h-2 rounded-full bg-ink-100 dark:bg-ink-800 overflow-hidden">
+                            <div class="h-full rounded-full transition-all"
+                                 :style="`width:${p*100}%; background:${diseaseColor(cls)}`"></div>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+
+                  <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+                    <h3 class="font-semibold text-ink-900 dark:text-white mb-3 text-sm">Sequence Composition</h3>
+                    <canvas x-ref="compChart" class="max-h-44"></canvas>
+                    <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                      <div class="rounded-lg bg-ink-50 dark:bg-ink-800 px-3 py-2 flex justify-between"><span class="text-ink-600 dark:text-ink-300">Entropy</span><span class="font-mono font-semibold text-ink-900 dark:text-white" x-text="analyze.result.stats.shannon_entropy.toFixed(2)"></span></div>
+                      <div class="rounded-lg bg-ink-50 dark:bg-ink-800 px-3 py-2 flex justify-between"><span class="text-ink-600 dark:text-ink-300">Complexity</span><span class="font-mono font-semibold text-ink-900 dark:text-white" x-text="analyze.result.stats.complexity_score.toFixed(2)"></span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Circular DNA visualizer -->
+                <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+                  <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-ink-900 dark:text-white text-sm">Circular Sequence Map</h3>
+                    <p class="text-xs text-ink-500 dark:text-ink-400">ORFs, GC profile & saliency hotspots</p>
+                  </div>
+                  <div x-ref="circularPlot" class="w-full" style="height:380px"></div>
+                </div>
+
+                <template x-if="analyze.result.explanation">
+                  <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+                    <div class="flex items-center justify-between mb-3">
+                      <h3 class="font-semibold text-ink-900 dark:text-white text-sm">Saliency Map</h3>
+                      <p class="text-xs text-ink-500 dark:text-ink-400">Bases highlighted by contribution to prediction</p>
+                    </div>
+                    <div class="rounded-xl bg-ink-900 dark:bg-ink-950 text-ink-100 p-4 font-mono text-[11px] leading-6 max-h-72 overflow-y-auto" x-html="renderSaliency()"></div>
+                    <div class="mt-3 flex items-center gap-3 text-[11px] text-ink-600 dark:text-ink-300">
+                      <span>Low</span>
+                      <div class="h-2 flex-1 rounded-full bg-gradient-to-r from-ink-700 via-amber-400 to-rose-500"></div>
+                      <span>High</span>
+                    </div>
+                    <template x-if="analyze.result.explanation.top_regions.length">
+                      <div class="mt-4">
+                        <h4 class="text-xs font-semibold uppercase text-ink-500 dark:text-ink-400 mb-2">Top Regions</h4>
+                        <div class="flex flex-wrap gap-2">
+                          <template x-for="r in analyze.result.explanation.top_regions" :key="r.start">
+                            <span class="px-2.5 py-1 text-xs font-mono rounded-md bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-100 dark:border-rose-500/30"
+                                  x-text="`${r.start}–${r.end} · score ${r.mean_score}`"></span>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <template x-if="analyze.result.similar && analyze.result.similar.length && !analyze.result.similar[0].error">
+                    <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+                      <h3 class="font-semibold text-ink-900 dark:text-white text-sm mb-3">Closest Known Sequences</h3>
+                      <div class="space-y-2">
+                        <template x-for="hit in analyze.result.similar" :key="hit.rank">
+                          <div class="rounded-lg border border-ink-200 dark:border-ink-700 p-3">
+                            <div class="flex items-center justify-between text-xs mb-1">
+                              <span class="font-semibold px-2 py-0.5 rounded-full" :style="`background:${diseaseColor(hit.disease)}20; color:${diseaseColor(hit.disease)}`" x-text="hit.disease"></span>
+                              <span class="font-mono text-ink-500 dark:text-ink-400" x-text="`#${hit.rank} · sim ${(hit.similarity*100).toFixed(1)}%`"></span>
+                            </div>
+                            <div class="font-mono text-[10px] text-ink-500 dark:text-ink-400 truncate" x-text="hit.preview + '...'"></div>
+                            <div class="text-[10px] text-ink-400 dark:text-ink-500 mt-0.5" x-text="`id ${hit.sequence_id}`"></div>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+
+                  <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+                    <h3 class="font-semibold text-ink-900 dark:text-white text-sm mb-3">Open Reading Frames</h3>
+                    <template x-if="analyze.result.orfs.length">
+                      <div class="text-xs space-y-1.5 max-h-64 overflow-y-auto">
+                        <template x-for="orf in analyze.result.orfs.slice(0,8)" :key="`${orf.start}-${orf.strand}-${orf.frame}`">
+                          <div class="flex justify-between font-mono px-2 py-1.5 rounded bg-ink-50 dark:bg-ink-800 text-ink-800 dark:text-ink-100">
+                            <span x-text="`${orf.strand} frame ${orf.frame}`"></span>
+                            <span x-text="`${orf.start}–${orf.end}`"></span>
+                            <span class="text-ink-500 dark:text-ink-400" x-text="`${orf.protein_length} aa`"></span>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+                    <p x-show="!analyze.result.orfs.length" class="text-xs text-ink-500 dark:text-ink-400">No ORFs of significant length found.</p>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </section>
+
+      <!-- COPILOT PAGE -->
+      <section x-show="page === 'copilot'" x-cloak>
+        <div class="grid grid-cols-12 gap-6">
+          <!-- Chat -->
+          <div class="col-span-12 lg:col-span-8 flex flex-col">
+            <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft flex flex-col" style="height: calc(100vh - 200px); min-height: 500px;">
+              <!-- Header -->
+              <div class="flex items-center justify-between p-4 border-b border-ink-200 dark:border-ink-800">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 grid place-items-center text-white text-lg shadow-soft">💬</div>
+                  <div>
+                    <div class="font-bold text-ink-900 dark:text-white">GenomeIQ Copilot</div>
+                    <div class="text-xs text-ink-500 dark:text-ink-400" x-text="`${copilot.kbFacts} facts indexed · ${copilot.provider} mode`"></div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <select x-model="copilot.provider"
+                          class="text-xs px-3 py-1.5 rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-800 text-ink-700 dark:text-ink-200">
+                    <template x-for="(info, key) in copilot.providerStatus" :key="key">
+                      <option :value="key" :disabled="!info.available" x-text="`${key.toUpperCase()}${info.available ? '' : ' (unavailable)'}`"></option>
+                    </template>
+                  </select>
+                  <button @click="clearCopilot()"
+                          class="text-xs px-3 py-1.5 rounded-lg bg-ink-100 dark:bg-ink-800 hover:bg-ink-200 dark:hover:bg-ink-700 text-ink-700 dark:text-ink-200">Clear</button>
+                </div>
+              </div>
+
+              <!-- Messages -->
+              <div id="copilot-messages" class="flex-1 overflow-y-auto p-4 space-y-4">
+                <!-- Empty state -->
+                <div x-show="copilot.messages.length === 0" class="text-center py-12">
+                  <div class="text-4xl mb-3">🧬</div>
+                  <div class="font-semibold text-ink-800 dark:text-white">Ask about your prediction or any gene</div>
+                  <p class="text-sm text-ink-500 dark:text-ink-400 mt-1">Grounded in a curated knowledge base of 4 disease classes and 17 key genes.</p>
+                  <div class="mt-5 max-w-lg mx-auto space-y-1.5">
+                    <template x-for="s in copilot.suggestions" :key="s">
+                      <button @click="sendCopilotMessage(s)"
+                              class="block w-full text-left text-sm px-3 py-2 rounded-lg bg-ink-50 dark:bg-ink-800 hover:bg-ink-100 dark:hover:bg-ink-700 text-ink-700 dark:text-ink-200 transition">
+                        <span x-text="s"></span>
+                      </button>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Messages -->
+                <template x-for="(msg, idx) in copilot.messages" :key="idx">
+                  <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
+                    <div :class="msg.role === 'user' ? 'bg-brand-600 text-white' : 'bg-ink-100 dark:bg-ink-800 text-ink-900 dark:text-ink-100'"
+                         class="max-w-[85%] rounded-2xl px-4 py-2.5 text-sm">
+                      <div x-html="formatMarkdown(msg.content)"></div>
+                      <template x-if="msg.role === 'assistant' && msg.retrieved && msg.retrieved.length">
+                        <div class="mt-3 pt-2 border-t border-ink-200 dark:border-ink-700">
+                          <div class="text-[10px] uppercase tracking-wider text-ink-500 dark:text-ink-400 mb-1.5">Sources</div>
+                          <div class="flex flex-wrap gap-1.5">
+                            <template x-for="src in msg.retrieved.slice(0,5)" :key="src.fact_id">
+                              <span class="text-[11px] px-2 py-0.5 rounded-md bg-white dark:bg-ink-700 border border-ink-200 dark:border-ink-600"
+                                    :title="src.content"
+                                    x-text="`${src.title} · ${(src.score*100).toFixed(0)}%`"></span>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+                      <template x-if="msg.role === 'assistant' && msg.note">
+                        <div class="mt-2 text-[11px] text-ink-500 dark:text-ink-400 italic" x-text="msg.note"></div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- Loading indicator -->
+                <div x-show="copilot.loading" class="flex justify-start">
+                  <div class="bg-ink-100 dark:bg-ink-800 rounded-2xl px-4 py-3">
+                    <div class="flex gap-1">
+                      <div class="w-2 h-2 rounded-full bg-ink-400 animate-soft-pulse"></div>
+                      <div class="w-2 h-2 rounded-full bg-ink-400 animate-soft-pulse" style="animation-delay: 0.2s"></div>
+                      <div class="w-2 h-2 rounded-full bg-ink-400 animate-soft-pulse" style="animation-delay: 0.4s"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Input -->
+              <div class="p-4 border-t border-ink-200 dark:border-ink-800">
+                <p x-show="copilot.error" x-text="copilot.error" class="mb-2 text-xs text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded-lg"></p>
+                <div class="flex gap-2">
+                  <input x-model="copilot.input"
+                         @keydown.enter.prevent="sendCopilotMessage()"
+                         :disabled="copilot.loading"
+                         placeholder="Ask about a disease, gene, prediction or methodology..."
+                         class="flex-1 px-3 py-2.5 text-sm rounded-lg border border-ink-200 dark:border-ink-700 dark:bg-ink-950/40 dark:text-ink-100 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-500/20 outline-none">
+                  <button @click="sendCopilotMessage()"
+                          :disabled="copilot.loading || !copilot.input.trim()"
+                          class="px-4 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold">
+                    Send
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right rail -->
+          <div class="col-span-12 lg:col-span-4 space-y-4">
+            <!-- Recent prediction context -->
+            <template x-if="analyze.result">
+              <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+                <div class="text-xs uppercase tracking-wider text-ink-500 dark:text-ink-400 mb-2">Active prediction context</div>
+                <div class="text-2xl font-extrabold" :style="`color:${diseaseColor(analyze.result.prediction.predicted_class)}`" x-text="analyze.result.prediction.predicted_class"></div>
+                <div class="text-xs text-ink-500 dark:text-ink-400 mt-1" x-text="`${(analyze.result.prediction.confidence*100).toFixed(1)}% confidence · model ${(analyze.result.prediction.model || 'tfidf').toUpperCase()}`"></div>
+                <p class="mt-2 text-xs text-ink-600 dark:text-ink-300">Copilot will weave this prediction into its answers.</p>
+              </div>
+            </template>
+
+            <!-- Provider status -->
+            <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+              <h3 class="text-sm font-semibold text-ink-900 dark:text-white mb-3">LLM Providers</h3>
+              <div class="space-y-3">
+                <template x-for="(info, key) in copilot.providerStatus" :key="key">
+                  <div class="flex items-start gap-3">
+                    <span class="mt-1 w-2 h-2 rounded-full shrink-0" :class="info.available ? 'bg-emerald-500' : 'bg-ink-300 dark:bg-ink-600'"></span>
+                    <div class="flex-1 text-xs">
+                      <div class="font-semibold text-ink-800 dark:text-white" x-text="key.toUpperCase()"></div>
+                      <div class="text-ink-500 dark:text-ink-400" x-text="info.description"></div>
+                      <template x-if="info.needs && info.needs.length">
+                        <div class="mt-1 text-amber-600 dark:text-amber-400">Needs: <span x-text="info.needs.join(', ')"></span></div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </div>
+              <div class="mt-4 text-[11px] text-ink-500 dark:text-ink-400">
+                <strong>Tip:</strong> set the <code class="px-1 py-0.5 rounded bg-ink-100 dark:bg-ink-800 font-mono">GEMINI_API_KEY</code> environment variable for the best free experience.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MUTATION PAGE -->
+      <section x-show="page === 'mutation'" x-cloak>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+            <h3 class="font-semibold text-ink-900 dark:text-white mb-2 text-sm">Reference</h3>
+            <textarea x-model="mutation.reference" placeholder="Reference DNA..." class="w-full h-40 px-3 py-2 text-xs font-mono rounded-lg border border-ink-200 dark:border-ink-700 dark:bg-ink-950/40 dark:text-ink-100 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none bg-ink-50/50"></textarea>
+          </div>
+          <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+            <h3 class="font-semibold text-ink-900 dark:text-white mb-2 text-sm">Variant</h3>
+            <textarea x-model="mutation.variant" placeholder="Variant DNA..." class="w-full h-40 px-3 py-2 text-xs font-mono rounded-lg border border-ink-200 dark:border-ink-700 dark:bg-ink-950/40 dark:text-ink-100 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none bg-ink-50/50"></textarea>
+          </div>
+        </div>
+        <div class="flex gap-2 mt-4">
+          <button @click="runMutation()" :disabled="mutation.loading"
+                  class="px-5 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold flex items-center gap-2">
+            <svg x-show="mutation.loading" class="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity=".3" stroke-width="3"/><path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+            <span x-text="mutation.loading ? 'Comparing...' : 'Compare Sequences'"></span>
+          </button>
+          <button @click="mutationSample()" class="px-4 py-2.5 rounded-lg bg-ink-100 dark:bg-ink-800 hover:bg-ink-200 dark:hover:bg-ink-700 text-ink-700 dark:text-ink-200 text-sm font-medium">Load demo pair</button>
+        </div>
+        <p x-show="mutation.error" x-text="mutation.error" class="mt-3 text-xs text-rose-600 dark:text-rose-300"></p>
+
+        <template x-if="mutation.result">
+          <div class="mt-6 space-y-4">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div class="bg-white dark:bg-ink-900 rounded-xl border border-ink-200 dark:border-ink-800 p-4">
+                <div class="text-xs text-ink-500 dark:text-ink-400">Aligned</div>
+                <div class="text-2xl font-bold text-ink-900 dark:text-white" x-text="mutation.result.aligned_length.toLocaleString()"></div>
+              </div>
+              <div class="bg-white dark:bg-ink-900 rounded-xl border border-ink-200 dark:border-ink-800 p-4">
+                <div class="text-xs text-ink-500 dark:text-ink-400">Mismatches</div>
+                <div class="text-2xl font-bold text-ink-900 dark:text-white" x-text="mutation.result.total_mismatches"></div>
+              </div>
+              <div class="bg-white dark:bg-ink-900 rounded-xl border border-ink-200 dark:border-ink-800 p-4">
+                <div class="text-xs text-ink-500 dark:text-ink-400">Mutation rate</div>
+                <div class="text-2xl font-bold text-ink-900 dark:text-white" x-text="(mutation.result.mutation_rate*100).toFixed(2)+'%'"></div>
+              </div>
+              <div class="bg-white dark:bg-ink-900 rounded-xl border border-ink-200 dark:border-ink-800 p-4">
+                <div class="text-xs text-ink-500 dark:text-ink-400">Length match</div>
+                <div class="text-2xl font-bold" :class="mutation.result.is_length_mismatch ? 'text-amber-500' : 'text-emerald-500'" x-text="mutation.result.is_length_mismatch ? 'No' : 'Yes'"></div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+                <h3 class="text-sm font-semibold text-ink-900 dark:text-white mb-2">Reference prediction</h3>
+                <div class="text-2xl font-bold" :style="`color:${diseaseColor(mutation.result.ref_prediction.predicted_class)}`" x-text="mutation.result.ref_prediction.predicted_class"></div>
+                <div class="text-xs text-ink-500 dark:text-ink-400" x-text="`confidence ${(mutation.result.ref_prediction.confidence*100).toFixed(1)}%`"></div>
+              </div>
+              <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+                <h3 class="text-sm font-semibold text-ink-900 dark:text-white mb-2">Variant prediction</h3>
+                <div class="text-2xl font-bold" :style="`color:${diseaseColor(mutation.result.alt_prediction.predicted_class)}`" x-text="mutation.result.alt_prediction.predicted_class"></div>
+                <div class="text-xs text-ink-500 dark:text-ink-400" x-text="`confidence ${(mutation.result.alt_prediction.confidence*100).toFixed(1)}%`"></div>
+              </div>
+            </div>
+
+            <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+              <h3 class="text-sm font-semibold text-ink-900 dark:text-white mb-3">Probability shift</h3>
+              <div class="space-y-2">
+                <template x-for="[cls, delta] in Object.entries(mutation.result.probability_shifts)" :key="cls">
+                  <div class="flex items-center gap-3 text-xs">
+                    <span class="w-24 font-medium text-ink-700 dark:text-ink-200" x-text="cls"></span>
+                    <div class="flex-1 h-2 rounded-full bg-ink-100 dark:bg-ink-800 relative overflow-hidden">
+                      <div class="absolute top-0 h-full"
+                           :class="delta >= 0 ? 'bg-emerald-500' : 'bg-rose-500'"
+                           :style="`left:50%; width:${Math.min(Math.abs(delta)*100, 50)}%; transform: translateX(${delta>=0?'0':'-100%'});`"></div>
+                      <div class="absolute top-0 left-1/2 w-px h-full bg-ink-300 dark:bg-ink-600"></div>
+                    </div>
+                    <span class="font-mono w-16 text-right" :class="delta >= 0 ? 'text-emerald-500' : 'text-rose-500'" x-text="(delta>=0?'+':'') + (delta*100).toFixed(1)+'%'"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+              <h3 class="text-sm font-semibold text-ink-900 dark:text-white mb-3" x-text="`Mutation Events (${mutation.result.events.length})`"></h3>
+              <div class="overflow-x-auto">
+                <table class="w-full text-xs">
+                  <thead class="text-left text-ink-500 dark:text-ink-400 border-b border-ink-200 dark:border-ink-700">
+                    <tr><th class="py-2">Pos</th><th class="py-2">Ref</th><th class="py-2">Alt</th><th class="py-2">Codon</th><th class="py-2">AA</th><th class="py-2">Effect</th></tr>
+                  </thead>
+                  <tbody class="font-mono text-ink-800 dark:text-ink-100">
+                    <template x-for="ev in mutation.result.events.slice(0,40)" :key="ev.position">
+                      <tr class="border-b border-ink-100 dark:border-ink-800">
+                        <td class="py-1.5" x-text="ev.position"></td>
+                        <td class="py-1.5 text-rose-500 font-semibold" x-text="ev.ref_base"></td>
+                        <td class="py-1.5 text-emerald-500 font-semibold" x-text="ev.alt_base"></td>
+                        <td class="py-1.5" x-text="ev.ref_codon ? `${ev.ref_codon}→${ev.alt_codon}` : '—'"></td>
+                        <td class="py-1.5" x-text="ev.ref_aa ? `${ev.ref_aa}→${ev.alt_aa}` : '—'"></td>
+                        <td class="py-1.5">
+                          <span class="px-2 py-0.5 rounded text-[10px] font-semibold" :class="effectClass(ev.effect)" x-text="ev.effect"></span>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </template>
+      </section>
+
+      <!-- BATCH PAGE -->
+      <section x-show="page === 'batch'" x-cloak>
+        <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+          <h3 class="font-semibold text-ink-900 dark:text-white mb-2">Batch FASTA upload</h3>
+          <p class="text-sm text-ink-500 dark:text-ink-400 mb-4">Upload a multi-record FASTA file. Each sequence is classified independently.</p>
+          <input type="file" @change="onFile($event)" accept=".fa,.fasta,.txt" class="block w-full text-sm text-ink-700 dark:text-ink-200 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-600 file:text-white file:font-medium hover:file:bg-brand-700">
+          <div x-show="batch.loading" class="mt-4 text-sm text-ink-500 dark:text-ink-400">Processing…</div>
+          <div x-show="batch.error" x-text="batch.error" class="mt-3 text-xs text-rose-600 dark:text-rose-300"></div>
+        </div>
+        <template x-if="batch.result">
+          <div class="mt-6">
+            <div class="grid grid-cols-3 gap-3 mb-4">
+              <div class="bg-white dark:bg-ink-900 rounded-xl border border-ink-200 dark:border-ink-800 p-4"><div class="text-xs text-ink-500 dark:text-ink-400">Total</div><div class="text-2xl font-bold text-ink-900 dark:text-white" x-text="batch.result.total"></div></div>
+              <div class="bg-white dark:bg-ink-900 rounded-xl border border-ink-200 dark:border-ink-800 p-4"><div class="text-xs text-ink-500 dark:text-ink-400">Successful</div><div class="text-2xl font-bold text-emerald-500" x-text="batch.result.successful"></div></div>
+              <div class="bg-white dark:bg-ink-900 rounded-xl border border-ink-200 dark:border-ink-800 p-4"><div class="text-xs text-ink-500 dark:text-ink-400">Failed</div><div class="text-2xl font-bold text-rose-500" x-text="batch.result.failed"></div></div>
+            </div>
+            <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft overflow-hidden">
+              <table class="w-full text-sm">
+                <thead class="bg-ink-50 dark:bg-ink-800 text-left text-ink-600 dark:text-ink-300 text-xs uppercase">
+                  <tr><th class="px-4 py-3">ID</th><th class="px-4 py-3">Length</th><th class="px-4 py-3">Predicted</th><th class="px-4 py-3">Confidence</th><th class="px-4 py-3">Status</th></tr>
+                </thead>
+                <tbody>
+                  <template x-for="row in batch.result.results" :key="row.record_id">
+                    <tr class="border-t border-ink-100 dark:border-ink-800">
+                      <td class="px-4 py-2.5 font-mono text-xs text-ink-800 dark:text-ink-100" x-text="row.record_id"></td>
+                      <td class="px-4 py-2.5 text-xs text-ink-700 dark:text-ink-300" x-text="row.length.toLocaleString()"></td>
+                      <td class="px-4 py-2.5">
+                        <template x-if="row.prediction">
+                          <span class="px-2 py-0.5 rounded-full text-xs font-semibold" :style="`background:${diseaseColor(row.prediction.predicted_class)}20;color:${diseaseColor(row.prediction.predicted_class)}`" x-text="row.prediction.predicted_class"></span>
+                        </template>
+                      </td>
+                      <td class="px-4 py-2.5 text-xs font-mono text-ink-700 dark:text-ink-300" x-text="row.prediction ? (row.prediction.confidence*100).toFixed(1)+'%' : '—'"></td>
+                      <td class="px-4 py-2.5 text-xs" :class="row.error ? 'text-rose-500' : 'text-emerald-500'" x-text="row.error || 'OK'"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </template>
+      </section>
+
+      <!-- KNOWLEDGE BASE -->
+      <section x-show="page === 'knowledge'" x-cloak>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <template x-for="d in knowledge" :key="d.name">
+            <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5"
+                 :style="`border-top:4px solid ${d.color}`">
+              <div class="flex items-center gap-3 mb-2">
+                <span class="text-2xl" x-text="d.icon"></span>
+                <div>
+                  <div class="font-bold text-ink-900 dark:text-white" x-text="d.name"></div>
+                  <div class="text-xs text-ink-500 dark:text-ink-400" x-text="d.short_description"></div>
+                </div>
+              </div>
+              <p class="text-sm text-ink-700 dark:text-ink-200 mt-2" x-text="d.long_description"></p>
+              <div class="mt-3">
+                <div class="text-[11px] uppercase font-semibold text-ink-500 dark:text-ink-400 mb-1">Key genes</div>
+                <div class="flex flex-wrap gap-1.5">
+                  <template x-for="g in d.key_genes" :key="g">
+                    <span class="px-2 py-0.5 rounded-md text-xs font-mono bg-ink-100 dark:bg-ink-800 text-ink-700 dark:text-ink-200" x-text="g"></span>
+                  </template>
+                </div>
+              </div>
+              <div class="mt-3">
+                <div class="text-[11px] uppercase font-semibold text-ink-500 dark:text-ink-400 mb-1">Pathways</div>
+                <div class="flex flex-wrap gap-1.5">
+                  <template x-for="p in d.pathways" :key="p">
+                    <span class="px-2 py-0.5 rounded-md text-xs bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300" x-text="p"></span>
+                  </template>
+                </div>
+              </div>
+              <div x-show="d.references.length" class="mt-3 text-xs">
+                <div class="text-[11px] uppercase font-semibold text-ink-500 dark:text-ink-400 mb-1">References</div>
+                <div class="space-y-0.5">
+                  <template x-for="r in d.references" :key="r">
+                    <a :href="r" target="_blank" class="block text-brand-600 dark:text-brand-300 hover:underline truncate" x-text="r"></a>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </section>
+
+      <!-- USER MANUAL -->
+      <section x-show="page === 'manual'" x-cloak>
+        <div class="max-w-4xl mx-auto space-y-5">
+
+          <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-6">
+            <h2 class="text-2xl font-extrabold text-ink-900 dark:text-white mb-2">📖 User Manual</h2>
+            <p class="text-sm text-ink-600 dark:text-ink-300">A friendly walk-through of every feature in GenomeIQ. Click any sidebar item to jump there.</p>
+          </div>
+
+          <!-- Quick-start card -->
+          <div class="bg-gradient-to-br from-brand-50 to-purple-50 dark:from-brand-500/10 dark:to-purple-500/10 rounded-2xl border border-brand-200 dark:border-brand-500/30 p-5">
+            <div class="flex items-start gap-3">
+              <div class="text-2xl">🚀</div>
+              <div>
+                <h3 class="font-bold text-ink-900 dark:text-white">Quick start in 60 seconds</h3>
+                <ol class="mt-2 text-sm text-ink-700 dark:text-ink-200 space-y-1.5 list-decimal list-inside">
+                  <li>Open the <strong>Analyze</strong> tab.</li>
+                  <li>Click any sample button (BRCA1 / INS / APP / ACTB) or paste your own DNA sequence.</li>
+                  <li>Press <strong>Analyze Sequence</strong>.</li>
+                  <li>Read the verdict, probabilities, saliency map and circular plot.</li>
+                  <li>Click <strong>PDF</strong> in the top-right to download a report.</li>
+                  <li>Switch to the <strong>Copilot</strong> tab and ask a follow-up question (e.g. "Why is this Cancer?").</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+
+          <!-- Per-feature sections -->
+          <details open class="group bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+            <summary class="font-bold text-ink-900 dark:text-white cursor-pointer flex items-center gap-2">
+              <span class="text-xl">🔬</span> 1. Analyze — predict disease from a DNA sequence
+            </summary>
+            <div class="mt-3 text-sm text-ink-700 dark:text-ink-200 space-y-3">
+              <p><strong>What it does:</strong> Takes a DNA sequence and predicts whether it carries markers of Cancer, Diabetes, Alzheimer's, or whether it is Normal (housekeeping).</p>
+              <p><strong>How to use:</strong></p>
+              <ol class="list-decimal list-inside space-y-1 ml-2">
+                <li>Paste a DNA sequence (only A, T, G, C, N characters) into the text box, or pick one of the sample buttons.</li>
+                <li>Watch the live <em>Length</em>, <em>GC%</em>, and <em>Valid</em> indicators update as you type.</li>
+                <li>Choose a <strong>Model backbone</strong> in the Analysis Options card:
+                  <ul class="list-disc list-inside ml-4 mt-1 space-y-0.5">
+                    <li><code>TFIDF</code> — fast k-mer ensemble (best accuracy on this dataset).</li>
+                    <li><code>DNABERT-2</code> — fine-tuned 117M-parameter genomic transformer.</li>
+                    <li><code>Ensemble</code> — averages both models for the most robust answer.</li>
+                  </ul>
+                </li>
+                <li>Toggle the optional analyses:
+                  <ul class="list-disc list-inside ml-4 mt-1 space-y-0.5">
+                    <li><strong>Saliency explanation</strong> — colors each base by how much it contributed to the prediction.</li>
+                    <li><strong>Out-of-distribution check</strong> — warns if your sequence looks unlike anything in training.</li>
+                    <li><strong>Similar sequence search</strong> — returns the 5 most similar known sequences from the training corpus.</li>
+                  </ul>
+                </li>
+                <li>Click <strong>Analyze Sequence</strong>. Results appear on the right.</li>
+              </ol>
+              <p><strong>What you see in the results:</strong></p>
+              <ul class="list-disc list-inside space-y-1 ml-2">
+                <li><strong>Verdict card</strong> — predicted class, color-coded confidence gauge, OOD risk banner.</li>
+                <li><strong>Class probabilities</strong> — how the model split its confidence across the four classes.</li>
+                <li><strong>Sequence composition</strong> — A/T/G/C/N base counts, GC%, entropy, complexity.</li>
+                <li><strong>Circular sequence map</strong> — outer ring = GC profile, middle ring = saliency hotspots, inner rings = ORFs (forward/reverse strand).</li>
+                <li><strong>Saliency map</strong> — base-by-base coloring (slate → amber → rose) showing what drove the prediction.</li>
+                <li><strong>Closest known sequences</strong> — top similar training sequences with their disease labels (sanity check).</li>
+                <li><strong>Open Reading Frames (ORFs)</strong> — protein-coding stretches in both strands and three frames.</li>
+              </ul>
+              <p><strong>Pro tips:</strong> If confidence is low, switch the backbone or try the <em>Ensemble</em> mode. If OOD risk is "high", treat the prediction as suggestive — your sequence may be from a region the model hasn't seen.</p>
+            </div>
+          </details>
+
+          <details class="group bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+            <summary class="font-bold text-ink-900 dark:text-white cursor-pointer flex items-center gap-2">
+              <span class="text-xl">💬</span> 2. Copilot — ask AI to explain anything
+            </summary>
+            <div class="mt-3 text-sm text-ink-700 dark:text-ink-200 space-y-3">
+              <p><strong>What it does:</strong> A retrieval-augmented chat assistant. It searches a curated knowledge base of disease and gene facts, then asks an LLM to answer your question grounded in those facts.</p>
+              <p><strong>How to use:</strong></p>
+              <ol class="list-decimal list-inside space-y-1 ml-2">
+                <li>Pick a <strong>provider</strong> from the dropdown:
+                  <ul class="list-disc list-inside ml-4 mt-1 space-y-0.5">
+                    <li><code>DEMO</code> — template-based answers, always works offline, no key needed.</li>
+                    <li><code>GEMINI</code> — Google Gemini 2.5 Flash (free 1500 req/day, requires <code>GEMINI_API_KEY</code> in <code>.env</code>).</li>
+                    <li><code>OLLAMA</code> — fully local Llama via Ollama runtime (offline, private).</li>
+                  </ul>
+                </li>
+                <li>Click any of the suggested questions, or type your own and press Enter.</li>
+                <li>Read the answer. Each AI response shows the <strong>retrieved sources</strong> as small chips below it — these are the knowledge-base facts used to ground the answer.</li>
+                <li>If you have already analyzed a sequence, the right rail shows an "Active prediction context" card. The Copilot will weave that prediction into its answer (e.g. "Why is my prediction Cancer?").</li>
+              </ol>
+              <p><strong>Good questions to try:</strong></p>
+              <ul class="list-disc list-inside space-y-0.5 ml-2 font-mono text-[12px]">
+                <li>What is BRCA1 and how does it relate to cancer?</li>
+                <li>Explain the role of APP and PSEN1 in Alzheimer's disease.</li>
+                <li>Why is my Diabetes prediction low confidence?</li>
+                <li>How does GenomeIQ's classifier work?</li>
+                <li>What does the OOD detector mean by high-risk?</li>
+              </ul>
+              <p><strong>Note:</strong> The Copilot will refuse to give medical advice. It is a research/education aid only.</p>
+            </div>
+          </details>
+
+          <details class="group bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+            <summary class="font-bold text-ink-900 dark:text-white cursor-pointer flex items-center gap-2">
+              <span class="text-xl">🧪</span> 3. Mutation Lab — compare reference vs variant
+            </summary>
+            <div class="mt-3 text-sm text-ink-700 dark:text-ink-200 space-y-3">
+              <p><strong>What it does:</strong> Takes two DNA sequences (a reference and a variant), aligns them base-by-base, and reports every mismatch along with its predicted protein-level effect and how the disease prediction shifts.</p>
+              <p><strong>How to use:</strong></p>
+              <ol class="list-decimal list-inside space-y-1 ml-2">
+                <li>Paste your reference sequence in the left box.</li>
+                <li>Paste the variant sequence in the right box. (Or click <strong>Load demo pair</strong> to try it instantly.)</li>
+                <li>Click <strong>Compare Sequences</strong>.</li>
+              </ol>
+              <p><strong>What the report shows:</strong></p>
+              <ul class="list-disc list-inside space-y-1 ml-2">
+                <li>Aligned length, total mismatches, and mutation rate.</li>
+                <li>Reference and variant predictions side-by-side.</li>
+                <li><strong>Probability shift</strong> — bidirectional bars showing how each class probability changed.</li>
+                <li><strong>Mutation events table</strong> — for each mismatch: position, ref→alt base, codon change, amino-acid change, and effect category (synonymous / missense / nonsense / stop-loss).</li>
+              </ul>
+              <p><strong>When to use:</strong> You suspect a single-nucleotide variant might change disease status. The classifier acts as a "second opinion" alongside the AA-level effect.</p>
+            </div>
+          </details>
+
+          <details class="group bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+            <summary class="font-bold text-ink-900 dark:text-white cursor-pointer flex items-center gap-2">
+              <span class="text-xl">📦</span> 4. Batch Upload — classify many sequences at once
+            </summary>
+            <div class="mt-3 text-sm text-ink-700 dark:text-ink-200 space-y-3">
+              <p><strong>What it does:</strong> Accepts a multi-record FASTA file and runs the classifier on every sequence.</p>
+              <p><strong>How to use:</strong></p>
+              <ol class="list-decimal list-inside space-y-1 ml-2">
+                <li>Prepare a FASTA file (each record starts with <code>&gt;identifier</code> on its own line, sequence on subsequent lines).</li>
+                <li>Click the file picker. <code>.fa</code>, <code>.fasta</code>, and <code>.txt</code> are accepted.</li>
+                <li>Wait for processing. Results appear in a sortable table.</li>
+              </ol>
+              <p><strong>Result columns:</strong> ID, length, predicted class (color-coded badge), confidence, and status (OK / error message).</p>
+            </div>
+          </details>
+
+          <details class="group bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+            <summary class="font-bold text-ink-900 dark:text-white cursor-pointer flex items-center gap-2">
+              <span class="text-xl">📚</span> 5. Knowledge Base — disease & gene reference
+            </summary>
+            <div class="mt-3 text-sm text-ink-700 dark:text-ink-200 space-y-3">
+              <p><strong>What it does:</strong> A static reference of the four disease classes and their key marker genes, linked to NCBI gene pages.</p>
+              <p><strong>How to use:</strong> Just browse the cards. Each card shows a description, key genes, biological pathways and external references.</p>
+            </div>
+          </details>
+
+          <details class="group bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+            <summary class="font-bold text-ink-900 dark:text-white cursor-pointer flex items-center gap-2">
+              <span class="text-xl">📄</span> 6. PDF Report download
+            </summary>
+            <div class="mt-3 text-sm text-ink-700 dark:text-ink-200 space-y-3">
+              <p><strong>What it does:</strong> Generates a formatted PDF of your most recent analysis — verdict, OOD risk, probabilities, sequence statistics, similar hits, ORFs, top saliency regions and the input sequence.</p>
+              <p><strong>How to use:</strong> After running an analysis, click the blue <strong>PDF</strong> button in the top-right header. The file downloads as <code>genomeiq-report-&lt;timestamp&gt;.pdf</code>.</p>
+            </div>
+          </details>
+
+          <details class="group bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+            <summary class="font-bold text-ink-900 dark:text-white cursor-pointer flex items-center gap-2">
+              <span class="text-xl">🌙</span> 7. Dark mode + theme toggle
+            </summary>
+            <div class="mt-3 text-sm text-ink-700 dark:text-ink-200 space-y-3">
+              <p>The sun/moon button in the top-right toggles between light and dark themes. Your choice is saved in <code>localStorage</code> and respected across sessions. The Composition doughnut and the Circular plot re-render with theme-appropriate colors.</p>
+            </div>
+          </details>
+
+          <details class="group bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-5">
+            <summary class="font-bold text-ink-900 dark:text-white cursor-pointer flex items-center gap-2">
+              <span class="text-xl">⚠️</span> 8. Limitations & disclaimer
+            </summary>
+            <div class="mt-3 text-sm text-ink-700 dark:text-ink-200 space-y-3">
+              <ul class="list-disc list-inside space-y-1 ml-2">
+                <li>Trained on a finite curated corpus (~500 unique parent sequences after dedup, expanded to 22k via sliding-window augmentation).</li>
+                <li>Four broad disease categories only. Real disease risk depends on far more than k-mer signatures.</li>
+                <li>Out-of-distribution sequences may produce confident-looking but unreliable predictions — heed the OOD banner.</li>
+                <li>The Copilot LLM may occasionally produce errors despite retrieval grounding. Always cross-check medical claims against the cited sources.</li>
+                <li><strong>Not for clinical decision-making.</strong> Research preview only.</li>
+              </ul>
+            </div>
+          </details>
+
+        </div>
+      </section>
+
+      <!-- PRESENTATION SLIDES -->
+      <section x-show="page === 'slides'" x-cloak>
+        <div class="max-w-5xl mx-auto">
+          <div class="bg-gradient-to-br from-brand-600 via-purple-600 to-pink-600 rounded-2xl p-1 shadow-soft">
+            <div class="bg-white dark:bg-ink-900 rounded-[14px] aspect-[16/9] flex flex-col" style="min-height: 480px;">
+
+              <!-- Slide 0: Title -->
+              <div x-show="slide === 0" class="flex-1 flex flex-col items-center justify-center text-center p-12">
+                <div class="text-7xl mb-4">🧬</div>
+                <div class="text-5xl font-extrabold text-ink-900 dark:text-white tracking-tight">GenomeIQ</div>
+                <div class="text-xl text-ink-600 dark:text-ink-300 mt-2">DNA Disease Classifier</div>
+                <div class="text-sm text-ink-500 dark:text-ink-400 mt-6">An AI/ML capstone project</div>
+                <div class="text-base font-semibold text-brand-700 dark:text-brand-300 mt-1">MD Naimur Rashid</div>
+              </div>
+
+              <!-- Slide 1: Problem -->
+              <div x-show="slide === 1" class="flex-1 p-12">
+                <div class="text-xs uppercase tracking-wider text-brand-600 dark:text-brand-300 mb-2">Problem</div>
+                <div class="text-3xl font-bold text-ink-900 dark:text-white mb-4">DNA → disease prediction is hard</div>
+                <ul class="text-base text-ink-700 dark:text-ink-200 space-y-2 list-disc list-inside">
+                  <li>Genomes are long, noisy, and high-dimensional.</li>
+                  <li>Disease-related markers are buried inside thousands of bases.</li>
+                  <li>Traditional bioinformatics tools (BLAST, alignment) require known references.</li>
+                  <li>We need a tool that takes <em>any</em> DNA sequence and tells the user something useful.</li>
+                </ul>
+              </div>
+
+              <!-- Slide 2: Solution -->
+              <div x-show="slide === 2" class="flex-1 p-12">
+                <div class="text-xs uppercase tracking-wider text-brand-600 dark:text-brand-300 mb-2">Solution</div>
+                <div class="text-3xl font-bold text-ink-900 dark:text-white mb-4">A multi-layer ML pipeline</div>
+                <div class="grid grid-cols-2 gap-4 mt-4 text-sm">
+                  <div class="rounded-xl bg-ink-50 dark:bg-ink-800 p-4">
+                    <div class="font-bold text-ink-900 dark:text-white">🧠 Two ML models</div>
+                    <div class="text-ink-600 dark:text-ink-300 mt-1">Classical TF-IDF k-mer ensemble + DNABERT-2 transformer (fine-tuned). Plus an averaging Ensemble.</div>
+                  </div>
+                  <div class="rounded-xl bg-ink-50 dark:bg-ink-800 p-4">
+                    <div class="font-bold text-ink-900 dark:text-white">🔍 Explainability</div>
+                    <div class="text-ink-600 dark:text-ink-300 mt-1">Saliency map highlights which DNA bases drove the prediction.</div>
+                  </div>
+                  <div class="rounded-xl bg-ink-50 dark:bg-ink-800 p-4">
+                    <div class="font-bold text-ink-900 dark:text-white">🚨 OOD detection</div>
+                    <div class="text-ink-600 dark:text-ink-300 mt-1">Flags inputs the model has never seen anything like.</div>
+                  </div>
+                  <div class="rounded-xl bg-ink-50 dark:bg-ink-800 p-4">
+                    <div class="font-bold text-ink-900 dark:text-white">💬 RAG Copilot</div>
+                    <div class="text-ink-600 dark:text-ink-300 mt-1">Gemini-powered chat grounded in a curated knowledge base.</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Slide 3: Architecture -->
+              <div x-show="slide === 3" class="flex-1 p-12">
+                <div class="text-xs uppercase tracking-wider text-brand-600 dark:text-brand-300 mb-2">Architecture</div>
+                <div class="text-3xl font-bold text-ink-900 dark:text-white mb-4">End-to-end system</div>
+                <div class="bg-ink-50 dark:bg-ink-800 rounded-xl p-5 font-mono text-[12px] leading-6 text-ink-700 dark:text-ink-200">
+                  Frontend (Tailwind + Alpine + Plotly + Chart.js)<br>
+                  &nbsp;&nbsp;&nbsp;&nbsp;↓ HTTP / JSON<br>
+                  FastAPI (uvicorn)<br>
+                  &nbsp;&nbsp;├── /predict ─→ TF-IDF ensemble · DNABERT-2 · Ensemble<br>
+                  &nbsp;&nbsp;├── /mutation ─→ AA-level diff + classifier shift<br>
+                  &nbsp;&nbsp;├── /batch ─→ FASTA → many predictions<br>
+                  &nbsp;&nbsp;├── /report/pdf ─→ ReportLab PDF<br>
+                  &nbsp;&nbsp;└── /chat ─→ FAISS retrieval → Gemini / Ollama / Demo<br>
+                  &nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+                  Models on disk + augmented dataset
+                </div>
+              </div>
+
+              <!-- Slide 4: Dataset -->
+              <div x-show="slide === 4" class="flex-1 p-12">
+                <div class="text-xs uppercase tracking-wider text-brand-600 dark:text-brand-300 mb-2">Dataset</div>
+                <div class="text-3xl font-bold text-ink-900 dark:text-white mb-4">From 808 raw → 22,848 training samples</div>
+                <div class="grid grid-cols-3 gap-3 text-sm">
+                  <div class="rounded-xl bg-ink-50 dark:bg-ink-800 p-4 text-center">
+                    <div class="text-3xl font-extrabold text-rose-500">377</div>
+                    <div class="text-ink-600 dark:text-ink-300">Cancer</div>
+                  </div>
+                  <div class="rounded-xl bg-ink-50 dark:bg-ink-800 p-4 text-center">
+                    <div class="text-3xl font-extrabold text-amber-500">164</div>
+                    <div class="text-ink-600 dark:text-ink-300">Diabetes</div>
+                  </div>
+                  <div class="rounded-xl bg-ink-50 dark:bg-ink-800 p-4 text-center">
+                    <div class="text-3xl font-extrabold text-purple-500">154</div>
+                    <div class="text-ink-600 dark:text-ink-300">Alzheimer's</div>
+                  </div>
+                  <div class="rounded-xl bg-ink-50 dark:bg-ink-800 p-4 text-center col-span-3">
+                    <div class="text-3xl font-extrabold text-emerald-500">113</div>
+                    <div class="text-ink-600 dark:text-ink-300">Normal (housekeeping)</div>
+                  </div>
+                </div>
+                <div class="mt-4 text-sm text-ink-700 dark:text-ink-200">
+                  <strong>Pipeline:</strong> dedup (MinHash Jaccard 0.95) → group-aware split → sliding-window augmentation (300/600/1200 bp + reverse-complement) → balanced 4×5712.
+                </div>
+              </div>
+
+              <!-- Slide 5: Models -->
+              <div x-show="slide === 5" class="flex-1 p-12">
+                <div class="text-xs uppercase tracking-wider text-brand-600 dark:text-brand-300 mb-2">Models</div>
+                <div class="text-3xl font-bold text-ink-900 dark:text-white mb-4">Three prediction backbones</div>
+                <table class="w-full text-sm">
+                  <thead class="text-left text-ink-500 dark:text-ink-400 border-b border-ink-200 dark:border-ink-700">
+                    <tr><th class="py-2">Backbone</th><th>Description</th><th>Speed</th><th>Best for</th></tr>
+                  </thead>
+                  <tbody class="text-ink-700 dark:text-ink-200">
+                    <tr class="border-b border-ink-100 dark:border-ink-800"><td class="py-2 font-semibold">TF-IDF</td><td>k=6 mers · 4-grams · RF + LinearSVC + LR</td><td>~50 ms</td><td>Default, highest accuracy on this set</td></tr>
+                    <tr class="border-b border-ink-100 dark:border-ink-800"><td class="py-2 font-semibold">DNABERT-2 (fine-tuned)</td><td>117 M-param transformer · 256-token context · fp16</td><td>~1 s</td><td>Long-range patterns</td></tr>
+                    <tr class="border-b border-ink-100 dark:border-ink-800"><td class="py-2 font-semibold">Ensemble</td><td>Average of TF-IDF + DNABERT-2 probabilities</td><td>~1 s</td><td>Most robust</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Slide 6: Results -->
+              <div x-show="slide === 6" class="flex-1 p-12">
+                <div class="text-xs uppercase tracking-wider text-brand-600 dark:text-brand-300 mb-2">Results</div>
+                <div class="text-3xl font-bold text-ink-900 dark:text-white mb-6">Performance</div>
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 p-5">
+                    <div class="text-xs uppercase font-semibold text-emerald-700 dark:text-emerald-300">5-fold CV macro F1</div>
+                    <div class="text-4xl font-extrabold text-emerald-600 dark:text-emerald-300 mt-1">0.96 ± 0.02</div>
+                    <div class="text-xs text-ink-600 dark:text-ink-300 mt-1">TF-IDF · group-aware split · no leakage</div>
+                  </div>
+                  <div class="rounded-xl bg-brand-50 dark:bg-brand-500/10 p-5">
+                    <div class="text-xs uppercase font-semibold text-brand-700 dark:text-brand-300">Held-out test sequences</div>
+                    <div class="text-4xl font-extrabold text-brand-600 dark:text-brand-300 mt-1">4 / 4</div>
+                    <div class="text-xs text-ink-600 dark:text-ink-300 mt-1">BRCA1, INS, APP, ACTB → all correct</div>
+                  </div>
+                  <div class="rounded-xl bg-ink-50 dark:bg-ink-800 p-5">
+                    <div class="text-xs uppercase font-semibold text-ink-500 dark:text-ink-400">DNABERT-2 fine-tune (3 ep)</div>
+                    <div class="text-4xl font-extrabold text-ink-700 dark:text-ink-200 mt-1">0.74</div>
+                    <div class="text-xs text-ink-500 dark:text-ink-400 mt-1">Macro F1 · 5.8 min on RTX 3050</div>
+                  </div>
+                  <div class="rounded-xl bg-ink-50 dark:bg-ink-800 p-5">
+                    <div class="text-xs uppercase font-semibold text-ink-500 dark:text-ink-400">Normal class</div>
+                    <div class="text-4xl font-extrabold text-ink-700 dark:text-ink-200 mt-1">100%</div>
+                    <div class="text-xs text-ink-500 dark:text-ink-400 mt-1">Precision · perfect housekeeping detection</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Slide 7: Explainability -->
+              <div x-show="slide === 7" class="flex-1 p-12">
+                <div class="text-xs uppercase tracking-wider text-brand-600 dark:text-brand-300 mb-2">Explainability</div>
+                <div class="text-3xl font-bold text-ink-900 dark:text-white mb-4">Per-base saliency map</div>
+                <div class="bg-ink-900 rounded-xl p-4 font-mono text-[11px] leading-6">
+                  <span style="background:rgb(244,63,94);color:#0f172a;padding:1px">A</span><span style="background:rgb(220,80,80);color:#0f172a;padding:1px">T</span><span style="background:rgb(180,90,90);color:#0f172a;padding:1px">G</span><span style="background:rgb(140,100,100);color:#e2e8f0;padding:1px">G</span><span style="background:rgb(100,110,90);color:#e2e8f0;padding:1px">A</span><span style="background:rgb(60,80,70);color:#e2e8f0;padding:1px">T</span><span style="background:rgb(40,60,60);color:#e2e8f0;padding:1px">T</span><span style="background:rgb(30,41,59);color:#e2e8f0;padding:1px">T</span><span style="background:rgb(30,41,59);color:#e2e8f0;padding:1px">A</span><span style="background:rgb(60,80,70);color:#e2e8f0;padding:1px">T</span><span style="background:rgb(140,100,100);color:#e2e8f0;padding:1px">C</span><span style="background:rgb(220,80,80);color:#0f172a;padding:1px">T</span><span style="background:rgb(244,63,94);color:#0f172a;padding:1px">G</span><span style="background:rgb(244,63,94);color:#0f172a;padding:1px">C</span><span style="background:rgb(220,80,80);color:#0f172a;padding:1px">T</span><span style="background:rgb(180,90,90);color:#0f172a;padding:1px">C</span><span style="background:rgb(140,100,100);color:#e2e8f0;padding:1px">T</span><span style="background:rgb(60,80,70);color:#e2e8f0;padding:1px">T</span>
+                  <div class="mt-3 text-ink-300 text-[10px]">Slate = low contribution &nbsp;·&nbsp; Amber = medium &nbsp;·&nbsp; Rose = high</div>
+                </div>
+                <div class="mt-4 text-sm text-ink-700 dark:text-ink-200">Each base's color reflects how strongly the overlapping k-mer features it appears in pushed the model toward the predicted class. Top contributing regions are highlighted as chips.</div>
+              </div>
+
+              <!-- Slide 8: OOD + Similarity -->
+              <div x-show="slide === 8" class="flex-1 p-12">
+                <div class="text-xs uppercase tracking-wider text-brand-600 dark:text-brand-300 mb-2">Trust signals</div>
+                <div class="text-3xl font-bold text-ink-900 dark:text-white mb-4">OOD detection + similarity search</div>
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                  <div class="rounded-xl bg-rose-50 dark:bg-rose-500/10 p-5">
+                    <div class="text-xs uppercase font-semibold text-rose-700 dark:text-rose-300">Out-of-distribution (OOD)</div>
+                    <p class="mt-2 text-ink-700 dark:text-ink-200">Cosine similarity to training corpus &lt; 5th-percentile threshold → flag as <strong>high risk</strong>. Honest uncertainty signal — never silently fail.</p>
+                  </div>
+                  <div class="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 p-5">
+                    <div class="text-xs uppercase font-semibold text-emerald-700 dark:text-emerald-300">BLAST-lite similarity</div>
+                    <p class="mt-2 text-ink-700 dark:text-ink-200">Top-5 nearest known sequences with their disease labels — independent sanity check. If your prediction says Cancer and 5/5 nearest are Cancer, you can trust it.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Slide 9: Copilot -->
+              <div x-show="slide === 9" class="flex-1 p-12">
+                <div class="text-xs uppercase tracking-wider text-brand-600 dark:text-brand-300 mb-2">RAG Copilot</div>
+                <div class="text-3xl font-bold text-ink-900 dark:text-white mb-4">Grounded LLM chat</div>
+                <div class="bg-ink-50 dark:bg-ink-800 rounded-xl p-5 font-mono text-[12px] text-ink-700 dark:text-ink-200">
+                  user query<br>
+                  &nbsp;&nbsp;↓<br>
+                  sentence-transformers (MiniLM L6 v2) → 384-dim embedding<br>
+                  &nbsp;&nbsp;↓<br>
+                  FAISS search → top-K curated facts (29 KB entries)<br>
+                  &nbsp;&nbsp;↓<br>
+                  prompt = system + facts + prediction context + user query<br>
+                  &nbsp;&nbsp;↓<br>
+                  Gemini 2.5 Flash &nbsp; / &nbsp; Ollama &nbsp; / &nbsp; Demo template<br>
+                  &nbsp;&nbsp;↓<br>
+                  answer + cited sources
+                </div>
+                <div class="mt-4 text-sm text-ink-700 dark:text-ink-200">Three free-tier providers. Sources are always visible to the user — no hidden hallucination.</div>
+              </div>
+
+              <!-- Slide 10: Stack -->
+              <div x-show="slide === 10" class="flex-1 p-12">
+                <div class="text-xs uppercase tracking-wider text-brand-600 dark:text-brand-300 mb-2">Tech stack</div>
+                <div class="text-3xl font-bold text-ink-900 dark:text-white mb-4">Built with…</div>
+                <div class="grid grid-cols-3 gap-3 text-sm">
+                  <div class="rounded-xl bg-ink-50 dark:bg-ink-800 p-3">
+                    <div class="font-bold text-ink-900 dark:text-white">ML</div>
+                    <div class="text-ink-600 dark:text-ink-300">scikit-learn · PyTorch · Transformers · sentence-transformers · FAISS</div>
+                  </div>
+                  <div class="rounded-xl bg-ink-50 dark:bg-ink-800 p-3">
+                    <div class="font-bold text-ink-900 dark:text-white">Bio</div>
+                    <div class="text-ink-600 dark:text-ink-300">Biopython · DNABERT-2 (Zhihan et al.)</div>
+                  </div>
+                  <div class="rounded-xl bg-ink-50 dark:bg-ink-800 p-3">
+                    <div class="font-bold text-ink-900 dark:text-white">Backend</div>
+                    <div class="text-ink-600 dark:text-ink-300">FastAPI · Uvicorn · Pydantic · ReportLab</div>
+                  </div>
+                  <div class="rounded-xl bg-ink-50 dark:bg-ink-800 p-3">
+                    <div class="font-bold text-ink-900 dark:text-white">Frontend</div>
+                    <div class="text-ink-600 dark:text-ink-300">Tailwind CSS · Alpine.js · Chart.js · Plotly</div>
+                  </div>
+                  <div class="rounded-xl bg-ink-50 dark:bg-ink-800 p-3">
+                    <div class="font-bold text-ink-900 dark:text-white">LLM</div>
+                    <div class="text-ink-600 dark:text-ink-300">Google Gemini 2.5 Flash · Ollama (Llama 3.2)</div>
+                  </div>
+                  <div class="rounded-xl bg-ink-50 dark:bg-ink-800 p-3">
+                    <div class="font-bold text-ink-900 dark:text-white">Tooling</div>
+                    <div class="text-ink-600 dark:text-ink-300">Python 3.10 · CUDA 12.4 · venv</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Slide 11: Closing -->
+              <div x-show="slide === 11" class="flex-1 flex flex-col items-center justify-center text-center p-12">
+                <div class="text-6xl mb-4">🎯</div>
+                <div class="text-4xl font-extrabold text-ink-900 dark:text-white">Thank you</div>
+                <div class="text-lg text-ink-600 dark:text-ink-300 mt-3">Questions?</div>
+                <div class="mt-8 text-sm text-ink-500 dark:text-ink-400">GenomeIQ · DNA Disease Classifier</div>
+                <div class="text-base font-semibold text-brand-700 dark:text-brand-300 mt-1">MD Naimur Rashid</div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Slide controls -->
+          <div class="flex items-center justify-between mt-4 px-1">
+            <button @click="prevSlide()" :disabled="slide === 0"
+                    class="px-4 py-2 rounded-lg bg-ink-100 dark:bg-ink-800 hover:bg-ink-200 dark:hover:bg-ink-700 text-ink-700 dark:text-ink-200 text-sm font-semibold disabled:opacity-30">
+              ← Previous
+            </button>
+            <div class="flex items-center gap-1.5">
+              <template x-for="i in slideCount" :key="i">
+                <button @click="slide = i - 1"
+                        :class="slide === i - 1 ? 'bg-brand-600 w-6' : 'bg-ink-300 dark:bg-ink-700 w-2 hover:bg-ink-400'"
+                        class="h-2 rounded-full transition-all"></button>
+              </template>
+            </div>
+            <button @click="nextSlide()" :disabled="slide === slideCount - 1"
+                    class="px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold disabled:opacity-30">
+              Next →
+            </button>
+          </div>
+          <div class="mt-2 text-center text-xs text-ink-500 dark:text-ink-400">
+            <span x-text="`Slide ${slide + 1} / ${slideCount}`"></span> · Use ← → keys
+          </div>
+        </div>
+      </section>
+
+      <!-- ABOUT -->
+      <section x-show="page === 'about'" x-cloak>
+        <div class="max-w-3xl space-y-4">
+          <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-6">
+            <div class="flex items-start gap-4">
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 grid place-items-center text-white text-2xl shadow-soft shrink-0">🧬</div>
+              <div>
+                <h2 class="text-xl font-bold text-ink-900 dark:text-white">GenomeIQ</h2>
+                <p class="text-sm text-ink-600 dark:text-ink-300">DNA disease classifier with explainability, OOD detection and similarity search.</p>
+              </div>
+            </div>
+            <p class="text-sm text-ink-700 dark:text-ink-200 mt-4">GenomeIQ analyses DNA sequences for disease-associated gene markers using a TF-IDF + ensemble (Random Forest + calibrated Linear SVM + Logistic Regression) classifier. The pipeline includes group-aware K-fold cross-validation, sliding-window data augmentation, calibrated probabilities and saliency-based interpretation.</p>
+            <ul class="text-sm text-ink-700 dark:text-ink-200 mt-3 list-disc list-inside space-y-1">
+              <li>Supported classes: Cancer, Diabetes, Alzheimer's, Normal</li>
+              <li>Saliency-style highlighting of contributing regions</li>
+              <li>OOD detector flags sequences outside the training distribution</li>
+              <li>BLAST-lite nearest-neighbour lookup against the training corpus</li>
+              <li>Mutation impact analyser (synonymous / missense / nonsense / stop loss)</li>
+              <li>FASTA batch prediction</li>
+              <li>Circular sequence map with ORF + GC + saliency overlays</li>
+              <li>Downloadable PDF analysis report</li>
+              <li>DNABERT-2 transformer backbone (frozen + fine-tuned variants)</li>
+              <li>RAG-powered Genomics Copilot with Gemini / Ollama / offline-demo providers</li>
+            </ul>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
+              <div class="rounded-lg bg-ink-50 dark:bg-ink-800 p-3">
+                <div class="text-[11px] uppercase text-ink-500 dark:text-ink-400 font-semibold">CV Macro F1</div>
+                <div class="text-xl font-extrabold text-ink-900 dark:text-white">0.96 ± 0.02</div>
+              </div>
+              <div class="rounded-lg bg-ink-50 dark:bg-ink-800 p-3">
+                <div class="text-[11px] uppercase text-ink-500 dark:text-ink-400 font-semibold">k-mer / n-gram</div>
+                <div class="text-xl font-extrabold text-ink-900 dark:text-white">k=6 · 4-grams</div>
+              </div>
+              <div class="rounded-lg bg-ink-50 dark:bg-ink-800 p-3">
+                <div class="text-[11px] uppercase text-ink-500 dark:text-ink-400 font-semibold">Train samples</div>
+                <div class="text-xl font-extrabold text-ink-900 dark:text-white">22,848</div>
+              </div>
+              <div class="rounded-lg bg-ink-50 dark:bg-ink-800 p-3">
+                <div class="text-[11px] uppercase text-ink-500 dark:text-ink-400 font-semibold">Classes</div>
+                <div class="text-xl font-extrabold text-ink-900 dark:text-white">4</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white dark:bg-ink-900 rounded-2xl border border-ink-200 dark:border-ink-800 shadow-soft p-6">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-full bg-gradient-to-br from-brand-500 to-purple-500 grid place-items-center text-white font-bold text-lg shrink-0">MN</div>
+              <div>
+                <div class="text-sm uppercase font-semibold tracking-wider text-ink-500 dark:text-ink-400">Created by</div>
+                <div class="text-lg font-extrabold text-ink-900 dark:text-white">MD Naimur Rashid</div>
+                <div class="text-xs text-ink-500 dark:text-ink-400">DNA Disease Classifier · AI/ML project</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-5 text-sm text-amber-800 dark:text-amber-200">
+            <strong>Disclaimer.</strong> GenomeIQ is a research preview only. The predictions, similarity scores and mutation analyses are derived from a finite training corpus and should not be used for clinical decision-making.
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

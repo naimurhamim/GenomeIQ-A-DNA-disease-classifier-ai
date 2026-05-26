@@ -1,0 +1,102 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "🚀 Run GenomeIQ Web App (uvicorn + reload)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "src.api.app:app",
+                "--reload",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8000"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "envFile": "${workspaceFolder}/.env",
+            "serverReadyAction": {
+                "pattern": "Uvicorn running on (https?://\\S+)",
+                "uriFormat": "%s",
+                "action": "openExternally"
+            }
+        },
+        {
+            "name": "🧪 Run /predict CLI on a sample sequence",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.predict",
+            "args": [
+                "--sequence",
+                "ATGGATTTATCTGCTCTTCGCGTTGAAGAAGTACAAAATGTCATTAATGCTATGCAGAAAATCTTAGAGTGTCCCATCTGTCTGGAGTTGATCAAGGAACCTGTCTCCACAAAGTGTGACCACATATTTTGCAAATTTTGCATGCTGAAACTTCTCAACCAGAAGAAAGGGCCTTCACAGTGTCCTTTATGTAAGAATGATATAACCAAAAGGG",
+                "--no-similar",
+                "--no-ood"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "name": "📊 Run dataset audit",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.data.audit",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "🛠️  Build augmented dataset",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.data.build_dataset",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "🎯 Train TF-IDF ensemble",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.train",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "📈 5-fold cross-validation",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.eval",
+            "args": [
+                "cv",
+                "--n-splits",
+                "5"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "🔬 DNABERT-2 fine-tune (3 epochs)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.ml.dnabert_finetune",
+            "args": [
+                "--epochs",
+                "3",
+                "--batch-size",
+                "2",
+                "--grad-accum",
+                "8"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}

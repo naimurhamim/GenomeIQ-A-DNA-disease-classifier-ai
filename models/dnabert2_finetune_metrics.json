@@ -1,0 +1,109 @@
+{
+  "epochs": 3,
+  "batch_size": 2,
+  "grad_accum_steps": 8,
+  "effective_batch": 16,
+  "learning_rate": 2e-05,
+  "max_length": 256,
+  "samples_per_class": 800,
+  "training_seconds": 349.0,
+  "train_size": 3200,
+  "val_size": 600,
+  "classes": [
+    "Alzheimers",
+    "Cancer",
+    "Diabetes",
+    "Normal"
+  ],
+  "accuracy": 0.735,
+  "macro_f1": 0.7384178272937282,
+  "weighted_f1": 0.7384178272937282,
+  "classification_report": {
+    "0": {
+      "precision": 0.7769784172661871,
+      "recall": 0.72,
+      "f1-score": 0.7474048442906575,
+      "support": 150.0
+    },
+    "1": {
+      "precision": 0.6809815950920245,
+      "recall": 0.74,
+      "f1-score": 0.7092651757188498,
+      "support": 150.0
+    },
+    "2": {
+      "precision": 0.5950920245398773,
+      "recall": 0.6466666666666666,
+      "f1-score": 0.6198083067092651,
+      "support": 150.0
+    },
+    "3": {
+      "precision": 0.9259259259259259,
+      "recall": 0.8333333333333334,
+      "f1-score": 0.8771929824561403,
+      "support": 150.0
+    },
+    "accuracy": 0.735,
+    "macro avg": {
+      "precision": 0.7447444907060038,
+      "recall": 0.735,
+      "f1-score": 0.7384178272937282,
+      "support": 600.0
+    },
+    "weighted avg": {
+      "precision": 0.7447444907060037,
+      "recall": 0.735,
+      "f1-score": 0.7384178272937282,
+      "support": 600.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      108,
+      5,
+      33,
+      4
+    ],
+    [
+      14,
+      111,
+      21,
+      4
+    ],
+    [
+      15,
+      36,
+      97,
+      2
+    ],
+    [
+      2,
+      11,
+      12,
+      125
+    ]
+  ],
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 1.2476183319091796,
+      "accuracy": 0.555,
+      "macro_f1": 0.5492129915249435,
+      "weighted_f1": 0.5492129915249435
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.7864966583251953,
+      "accuracy": 0.6933333333333334,
+      "macro_f1": 0.6950364957759321,
+      "weighted_f1": 0.6950364957759322
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.4837326431274414,
+      "accuracy": 0.735,
+      "macro_f1": 0.7384178272937282,
+      "weighted_f1": 0.7384178272937282
+    }
+  ]
+}

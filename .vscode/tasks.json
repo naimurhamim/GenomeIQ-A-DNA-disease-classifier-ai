@@ -1,0 +1,30 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Install dependencies",
+            "type": "shell",
+            "command": "${workspaceFolder}/venv/Scripts/python.exe -m pip install -r requirements.txt",
+            "problemMatcher": []
+        },
+        {
+            "label": "Build augmented dataset",
+            "type": "shell",
+            "command": "${workspaceFolder}/venv/Scripts/python.exe -m src.data.build_dataset",
+            "problemMatcher": []
+        },
+        {
+            "label": "Train TF-IDF ensemble",
+            "type": "shell",
+            "command": "${workspaceFolder}/venv/Scripts/python.exe -m src.train",
+            "problemMatcher": []
+        },
+        {
+            "label": "Run web app",
+            "type": "shell",
+            "command": "${workspaceFolder}/venv/Scripts/python.exe -m uvicorn src.api.app:app --reload --port 8000",
+            "isBackground": true,
+            "problemMatcher": []
+        }
+    ]
+}

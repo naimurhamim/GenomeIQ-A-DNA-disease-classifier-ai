@@ -1,0 +1,35 @@
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}/venv/Scripts/python.exe",
+    "python.terminal.activateEnvironment": true,
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}"
+    ],
+    "[python]": {
+        "editor.formatOnSave": false,
+        "editor.tabSize": 4
+    },
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true,
+        "**/*.pyc": true,
+        "**/.mypy_cache": true,
+        "**/.ruff_cache": true
+    },
+    "files.watcherExclude": {
+        "**/venv/**": true,
+        "**/models/**": true,
+        "**/data/processed/**": true,
+        "**/__pycache__/**": true
+    },
+    "search.exclude": {
+        "**/venv": true,
+        "**/models/dnabert2_base": true,
+        "**/models/dnabert2_finetuned": true,
+        "**/data/processed": true,
+        "**/__pycache__": true
+    },
+    "terminal.integrated.defaultProfile.windows": "PowerShell",
+    "terminal.integrated.cwd": "${workspaceFolder}"
+}

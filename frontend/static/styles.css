@@ -1,0 +1,19 @@
+[x-cloak] { display: none !important; }
+
+html, body { height: 100%; }
+
+/* Smooth scroll inside main content */
+main > div { scroll-behavior: smooth; }
+
+/* Prettier scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* Soft pulse for loading dots */
+@keyframes softPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+.animate-soft-pulse { animation: softPulse 1.4s ease-in-out infinite; }

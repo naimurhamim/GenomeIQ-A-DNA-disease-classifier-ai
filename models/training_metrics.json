@@ -1,0 +1,85 @@
+{
+  "training_seconds": 33.58,
+  "k": 6,
+  "ngram_range": [
+    4,
+    4
+  ],
+  "vocab_size": 175816,
+  "train_size": 22848,
+  "val_size": 1843,
+  "classes": [
+    "Alzheimers",
+    "Cancer",
+    "Diabetes",
+    "Normal"
+  ],
+  "accuracy": 0.9348887683125339,
+  "macro_f1": 0.9411819760978724,
+  "weighted_f1": 0.9348915324597936,
+  "classification_report": {
+    "Alzheimers": {
+      "precision": 0.9787985865724381,
+      "recall": 0.8683385579937304,
+      "f1-score": 0.920265780730897,
+      "support": 319.0
+    },
+    "Cancer": {
+      "precision": 0.9322493224932249,
+      "recall": 0.9529085872576177,
+      "f1-score": 0.9424657534246575,
+      "support": 722.0
+    },
+    "Diabetes": {
+      "precision": 0.8859180035650623,
+      "recall": 0.9186691312384473,
+      "f1-score": 0.9019963702359347,
+      "support": 541.0
+    },
+    "Normal": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 261.0
+    },
+    "accuracy": 0.9348887683125339,
+    "macro avg": {
+      "precision": 0.9492414781576813,
+      "recall": 0.9349790691224489,
+      "f1-score": 0.9411819760978724,
+      "support": 1843.0
+    },
+    "weighted avg": {
+      "precision": 0.9363008138282229,
+      "recall": 0.9348887683125339,
+      "f1-score": 0.9348915324597936,
+      "support": 1843.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      277,
+      6,
+      36,
+      0
+    ],
+    [
+      6,
+      688,
+      28,
+      0
+    ],
+    [
+      0,
+      44,
+      497,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      261
+    ]
+  ]
+}

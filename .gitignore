@@ -1,0 +1,57 @@
+# Secrets
+.env
+.env.local
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+
+# Data caches & large artifacts (keep raw dataset only)
+data/processed/*.parquet
+data/processed/*.json
+data/processed/*.npy
+data/processed/*.csv
+models/disease_classifier.pkl
+models/disease_vectorizer.pkl
+models/disease_label_encoder.pkl
+models/dnabert2_base/
+models/dnabert2_finetuned/
+models/dnabert2_embeddings.npz
+models/dnabert2_head.pkl
+models/dnabert2_label_encoder.pkl
+models/similarity_index.npz
+models/similarity_index.meta.json
+models/ood_stats.npz
+models/ood_stats.meta.json
+models/rag_index.faiss
+models/rag_index_meta.npz
+
+# Notebook outputs / temporary scripts
+_*.py
+_*.pdf
+
+# Keep the figures folder tracked (screenshots referenced in README)
+!figures/
+!figures/**
