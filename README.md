@@ -33,9 +33,9 @@
 
 ## 🎬 Demo Video
 
-[![GenomeIQ Demo](https://img.youtube.com/vi/YOUR_YOUTUBE_ID_HERE/maxresdefault.jpg)](https://youtu.be/YOUR_YOUTUBE_ID_HERE)
+[![GenomeIQ Demo](https://img.youtube.com/vi/jEPU8YnJC3I/maxresdefault.jpg)](https://youtu.be/jEPU8YnJC3I)
 
-**▶ [Watch Full Demo on YouTube](https://youtu.be/YOUR_YOUTUBE_ID_HERE)**
+**▶ [Watch Full Demo on YouTube](https://youtu.be/jEPU8YnJC3I)**
 
 > *(Replace `YOUR_YOUTUBE_ID_HERE` with the actual video ID once uploaded.)*
 
