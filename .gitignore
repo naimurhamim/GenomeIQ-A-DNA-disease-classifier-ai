@@ -52,6 +52,10 @@ models/rag_index_meta.npz
 _*.py
 _*.pdf
 
+# Video / demo planning (private to author)
+VIDEO_SCRIPT.md
+VIDEO_SCRIPT.pdf
+
 # Keep the figures folder tracked (screenshots referenced in README)
 !figures/
 !figures/**
