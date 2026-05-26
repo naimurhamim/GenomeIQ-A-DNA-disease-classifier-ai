@@ -37,8 +37,6 @@
 
 **▶ [Watch Full Demo on YouTube](https://youtu.be/jEPU8YnJC3I)**
 
-> *(Replace `YOUR_YOUTUBE_ID_HERE` with the actual video ID once uploaded.)*
-
 ---
 
 ## 🖼️ Application Hero
